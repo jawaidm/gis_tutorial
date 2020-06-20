@@ -5,6 +5,8 @@ import {Vector as VectorLayer, Tile as TileLayer} from 'ol/layer';
 import {Vector as VectorSource, Stamen} from 'ol/source';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
+import Renderer from 'ol/renderer/webgl/PointsLayer';
+import {clamp} from 'ol/math';
 
 const source = new VectorSource();
 
@@ -37,8 +39,68 @@ client.onload = function() {
 };
 client.send();
 
+const minYear = 1850;
+const maxYear = 2015;
+const span = maxYear - minYear;
+const rate = 10; // years per second
 
-new Map({
+const start = Date.now();
+let currentYear = minYear;
+
+const color = [1, 0, 0, 0.5];
+
+class CustomLayer extends VectorLayer {
+  createRenderer() {
+    return new Renderer(this, {
+      colorCallback: function(feature, vertex, component) {
+        return color[component];
+      },
+      sizeCallback: function(feature) {
+        return 18 * clamp(feature.get('mass') / 200000, 0, 1) + 8;
+      },
+      fragmentShader: `
+          precision mediump float;
+
+          uniform float u_currentYear;
+
+          varying vec2 v_texCoord;
+          varying vec4 v_color;
+          varying float v_opacity;
+
+          void main(void) {
+            float impactYear = v_opacity;
+            if (impactYear > u_currentYear) {
+              discard;
+            }
+
+            vec2 texCoord = v_texCoord * 2.0 - vec2(1.0, 1.0);
+            float sqRadius = texCoord.x * texCoord.x + texCoord.y * texCoord.y;
+
+            float factor = pow(1.1, u_currentYear - impactYear);
+
+            float value = 2.0 * (1.0 - sqRadius * factor);
+            float alpha = smoothstep(0.0, 1.0, value);
+
+            gl_FragColor = v_color;
+            gl_FragColor.a *= alpha;
+          }`,
+
+      opacityCallback: function(feature) {
+        // here the opacity channel of the vertices is used to store the year of impact
+        return feature.get('year');
+      },
+      uniforms: {
+        u_currentYear: function() {
+          return currentYear;
+        }
+      },
+
+
+    });
+  }
+}
+
+const map = new Map({
   target: 'map-container',
   layers: [
     new TileLayer({
@@ -46,7 +108,7 @@ new Map({
         layer: 'toner'
       })
     }),
-    new VectorLayer({
+    new CustomLayer({
       source: source
     })
   ],
@@ -55,4 +117,18 @@ new Map({
     zoom: 2
   })
 });
+
+const yearElement = document.getElementById('year');
+
+function render() {
+  const elapsed = rate * (Date.now() - start) / 1000;
+  currentYear = minYear + (elapsed % span);
+  yearElement.innerText = currentYear.toFixed(0);
+
+  map.render();
+  requestAnimationFrame(render);
+}
+
+render();
+
 
