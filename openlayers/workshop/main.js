@@ -6,6 +6,7 @@ import VectorSource from 'ol/source/Vector';
 import View from 'ol/View';
 import sync from 'ol-hashed';
 import DragAndDrop from 'ol/interaction/DragAndDrop';
+import Draw from 'ol/interaction/Draw';
 import Modify from 'ol/interaction/Modify';
 
 const source = new VectorSource();
@@ -27,6 +28,11 @@ map.addInteraction(new DragAndDrop({
 }));
 
 map.addInteraction(new Modify({
+      source: source
+}));
+
+map.addInteraction(new Draw({
+      type: 'Polygon',
       source: source
 }));
 
