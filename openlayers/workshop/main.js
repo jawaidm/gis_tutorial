@@ -33,4 +33,3 @@ map.addInteraction(new Modify({
 map.addLayer(layer);
 
 sync(map);
-
